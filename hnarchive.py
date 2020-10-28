@@ -220,7 +220,7 @@ def select_item(id):
     return item
 
 def select_latest_id():
-    cur = sql.execute('SELECT id FROM items ORDER BY time DESC, id ASC LIMIT 1')
+    cur = sql.execute('SELECT id FROM items ORDER BY id DESC LIMIT 1')
     row = cur.fetchone()
     if row is None:
         return None
