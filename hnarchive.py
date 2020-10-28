@@ -69,7 +69,7 @@ def get(url, retries=1):
     while retries > 0:
         log.loud(url)
         try:
-            response = requests.get(url, headers=HEADERS)
+            response = requests.get(url, headers=HEADERS, timeout=2)
             response.raise_for_status()
             break
         except requests.exceptions.HTTPError as exc:
@@ -80,7 +80,8 @@ def get(url, retries=1):
             retries -= 1
             log.loud('Request failed, %d tries remain.', retries)
             time.sleep(bo.next())
-        except requests.exceptions.ConnectionError:
+        except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
+            log.loud('Request failed, %d tries remain.', retries)
             time.sleep(bo.next())
 
     end_time = time.time()
