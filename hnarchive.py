@@ -134,12 +134,35 @@ def get_latest_id():
 def livestream():
     bo = backoff.Linear(m=2, b=5, max=60)
     id = select_latest_id() or 1
+    # missed_loops:
+    # Usually, livestream assumes that `item is None` means the requested item
+    # id hasn't been published yet. But, if that item is actually just deleted,
+    # we would be stuck waiting for it forever. missed_loops is used to
+    # ocassionally check get_latest_id to see if new items are available, so we
+    # know that the current id is really just deleted.
+    # Items are released in small batches of < ~10 at a time. It is important
+    # that the number in `latest > id+XXX` is big enough that we are sure the
+    # requested item is really dead and not just part of a fresh batch that
+    # beat our check in a race condition (consider that between the last
+    # iteration which triggered the check and the call to get_latest_id, the
+    # item we were waiting for is published in a new batch). I chose 50 because
+    # catching up with 50 items is not a big deal.
+    missed_loops = 0
     while True:
         item = get_item(id)
         if item is None:
+            log.debug('%s does not exist yet.', id)
+            missed_loops += 1
+            if missed_loops % 5 == 0:
+                latest = get_latest_id()
+                if latest > (id+50):
+                    log.debug('Skipping %s because future ids exist.', id)
+                    id += 1
+                    continue
             time.sleep(bo.next())
             continue
         id += 1
+        missed_loops = 0
         bo.rewind(2)
         yield item
 
