@@ -10,8 +10,9 @@ from voussoirkit import betterhelp
 from voussoirkit import ratelimiter
 from voussoirkit import sqlhelpers
 from voussoirkit import threadpool
+from voussoirkit import vlogging
 
-log = logging.getLogger('hnarchive')
+log = vlogging.getLogger('hnarchive')
 
 VERSION = 1
 
@@ -48,10 +49,6 @@ ITEMS_COLUMNS = COLUMNS['items']
 
 sql = sqlite3.connect('hnarchive.db')
 sql.executescript(DB_INIT)
-
-LOG_LOUD = 1
-logging.addLevelName(LOG_LOUD, 'LOUD')
-log.loud = lambda *args, **kwargs: log.log(LOG_LOUD, *args, **kwargs)
 
 # HELPERS ##########################################################################################
 
@@ -378,18 +375,7 @@ def update_items_argparse(args):
         commit()
 
 def main(argv):
-    logging.basicConfig()
-    if '--loud' in argv:
-        log.setLevel(LOG_LOUD)
-        argv.remove('--loud')
-    elif '--debug' in argv:
-        log.setLevel(logging.DEBUG)
-        argv.remove('--debug')
-    elif '--quiet' in argv:
-        log.setLevel(logging.ERROR)
-        argv.remove('--quiet')
-    else:
-        log.setLevel(logging.INFO)
+    argv = vlogging.set_level_by_argv(log, argv)
 
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers()
