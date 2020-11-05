@@ -255,11 +255,14 @@ hnarchive.py
 
 {get}
 
-{update}
-
 {livestream}
 
+{update}
+
 {update_items}
+
+TO SEE DETAILS ON EACH COMMAND, RUN
+> hnarchive.py <command> --help
 '''.lstrip()
 
 SUB_DOCSTRINGS = dict(
@@ -268,17 +271,26 @@ get:
     Get items between two IDs, inclusive.
 
     flags:
-    --lower:
+    --lower id:
         Lower bound item ID.
 
-    --upper:
+    --upper id:
         Upper bound item ID.
 
     --threads X:
         Use X threads to download items. Default = 1 thread.
 
     --commit_period X:
-        Commit the database after every X insertions. Default = 1000.
+        Commit the database after every X insertions. Default = 200.
+'''.strip(),
+
+livestream='''
+livestream:
+    Watch for new items in an infinite loop.
+
+    flags:
+    --commit_period X:
+        Commit the database after every X insertions. Default = 200.
 '''.strip(),
 
 update='''
@@ -288,6 +300,9 @@ update:
     flags:
     --threads X:
         Use X threads to download items. Default = 1 thread.
+
+    --commit_period X:
+        Commit the database after every X insertions. Default = 200.
 '''.strip(),
 
 update_items='''
@@ -298,11 +313,12 @@ update_items:
     --days X:
         Update items where the retrieval date is less than X days ahead of the
         submission date.
-        Stories are only open for comments for 14 days.
+        Stories are only open for comments for 14 days, so the `descendants`
+        count of any story younger than 14 days should be considered volatile.
         It seems the upvote button does not disappear at any age, though I
         don't know whether votes on old submissions will actually count.
-        Regardless, votes tend to solidify within a day or two after
-        submission so a small number should be sufficient.
+        Regardless, votes and comments tend to solidify within a day or two
+        after submission so a small number should be sufficient.
 
     --threads X:
         Use X threads to download items. Default = 1 thread.
@@ -311,11 +327,9 @@ update_items:
         If True, only update items where the submission date is more than 14
         days ago. Without this, you will be updating items which are very close
         to the present time, an effort which you may find wasteful.
-'''.strip(),
 
-livestream='''
-livestream:
-    Watch for new items in an infinite loop.
+    --commit_period X:
+        Commit the database after every X insertions. Default = 200.
 '''.strip(),
 )
 
@@ -335,7 +349,7 @@ def get_argparse(args):
 
 def livestream_argparse(args):
     try:
-        insert_items(livestream())
+        insert_items(livestream(), commit_period=args.commit_period)
     except KeyboardInterrupt:
         commit()
 
@@ -350,7 +364,7 @@ def update_argparse(args):
             ids = range(lower, upper+1)
             items = get_items(ids, threads=args.threads)
 
-            insert_items(items)
+            insert_items(items, commit_period=args.commit_period)
     except KeyboardInterrupt:
         commit()
 
@@ -366,11 +380,12 @@ def update_items_argparse(args):
     cur = sql.execute(query, bindings)
     ids = cur.fetchall()
 
+    log.info('Updating %d items.', len(ids))
     ids = [id for (id,) in ids]
     items = get_items(ids, threads=args.threads)
 
     try:
-        insert_items(items)
+        insert_items(items, commit_period=args.commit_period)
     except KeyboardInterrupt:
         commit()
 
@@ -384,20 +399,23 @@ def main(argv):
     p_get.add_argument('--lower', type=int, default=None)
     p_get.add_argument('--upper', type=int, default=None)
     p_get.add_argument('--threads', type=int, default=None)
-    p_get.add_argument('--commit_period', '--commit-period', type=int, default=1000)
+    p_get.add_argument('--commit_period', '--commit-period', type=int, default=200)
     p_get.set_defaults(func=get_argparse)
 
     p_livestream = subparsers.add_parser('livestream')
+    p_livestream.add_argument('--commit_period', '--commit-period', type=int, default=200)
     p_livestream.set_defaults(func=livestream_argparse)
 
     p_update = subparsers.add_parser('update')
     p_update.add_argument('--threads', type=int, default=None)
+    p_update.add_argument('--commit_period', '--commit-period', type=int, default=200)
     p_update.set_defaults(func=update_argparse)
 
     p_update_items = subparsers.add_parser('update_items', aliases=['update-items'])
     p_update_items.add_argument('--days', type=float, required=True)
     p_update_items.add_argument('--threads', type=int, default=None)
     p_update_items.add_argument('--only_mature', '--only-mature', action='store_true')
+    p_update_items.add_argument('--commit_period', '--commit-period', type=int, default=200)
     p_update_items.set_defaults(func=update_items_argparse)
 
     return betterhelp.subparser_main(
