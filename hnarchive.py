@@ -52,6 +52,14 @@ sql.executescript(DB_INIT)
 
 # HELPERS ##########################################################################################
 
+def ctrlc_commit(function):
+    def wrapped(*args, **kwargs):
+        try:
+            function(*args, **kwargs)
+        except KeyboardInterrupt:
+            commit()
+    return wrapped
+
 def int_or_none(x):
     if x is None:
         return x
@@ -335,6 +343,7 @@ update_items:
 
 DOCSTRING = betterhelp.add_previews(DOCSTRING, SUB_DOCSTRINGS)
 
+@ctrlc_commit
 def get_argparse(args):
     lower = args.lower or 1
     upper = args.upper or get_latest_id()
@@ -342,32 +351,26 @@ def get_argparse(args):
     ids = range(lower, upper+1)
     items = get_items(ids, threads=args.threads)
 
-    try:
-        insert_items(items, commit_period=args.commit_period)
-    except KeyboardInterrupt:
-        commit()
+    insert_items(items, commit_period=args.commit_period)
 
+@ctrlc_commit
 def livestream_argparse(args):
-    try:
-        insert_items(livestream(), commit_period=args.commit_period)
-    except KeyboardInterrupt:
-        commit()
+    insert_items(livestream(), commit_period=args.commit_period)
 
+@ctrlc_commit
 def update_argparse(args):
-    try:
-        while True:
-            lower = select_latest_id() or 1
-            upper = get_latest_id()
-            if lower == upper:
-                break
+    while True:
+        lower = select_latest_id() or 1
+        upper = get_latest_id()
+        if lower == upper:
+            break
 
-            ids = range(lower, upper+1)
-            items = get_items(ids, threads=args.threads)
+        ids = range(lower, upper+1)
+        items = get_items(ids, threads=args.threads)
 
-            insert_items(items, commit_period=args.commit_period)
-    except KeyboardInterrupt:
-        commit()
+        insert_items(items, commit_period=args.commit_period)
 
+@ctrlc_commit
 def update_items_argparse(args):
     seconds = args.days * 86400
     if args.only_mature:
@@ -384,10 +387,7 @@ def update_items_argparse(args):
     ids = [id for (id,) in ids]
     items = get_items(ids, threads=args.threads)
 
-    try:
-        insert_items(items, commit_period=args.commit_period)
-    except KeyboardInterrupt:
-        commit()
+    insert_items(items, commit_period=args.commit_period)
 
 def main(argv):
     argv = vlogging.set_level_by_argv(log, argv)
