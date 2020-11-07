@@ -7,7 +7,15 @@ Please `pip install requests` and `pip install voussoirkit`.
 
 According to the [HN API docs](https://github.com/HackerNews/API) there is no enforced ratelimit, so just use a `threads` count that seems polite.
 
-To get started, just run `python hnarchive.py update` and it will start from 1. In the future, you can run `update` on a cronjob or use `livestream` to get new items forever. Note, `update` always starts from the highest ID in the database. If you use `get` to get a range of IDs that is ahead of your update schedule, your next `update` will miss the skipped IDs.
+To get started, just run `python hnarchive.py update` and it will start from 1. In the future, you can run `update` on a cronjob or use `livestream` to get new items forever.
+
+Notes:
+
+- `update` always starts from the highest ID in the database. If you use `get` to get a range of IDs that is ahead of your update schedule, your next `update` will miss the skipped IDs.
+
+- `update_items` will overwrite previously fetched data with the new properties. Please know that HN moderators occasionally migrate comments between threads, adjust thread titles, etc. HN has a tight window in which authors can edit their own posts so you can expect actual item texts to remain pretty static outside of moderator action.
+
+  The exception is if an item is deleted and comes back as `None` from the server, then hnarchive keeps the old data.
 
 Here are all of the subcommands:
 
