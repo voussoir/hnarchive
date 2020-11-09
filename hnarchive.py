@@ -387,6 +387,10 @@ def update_items_argparse(args):
     ids = cur.fetchall()
 
     log.info('Updating %d items.', len(ids))
+
+    if not ids:
+        return
+
     ids = [id for (id,) in ids]
     items = get_items(ids, threads=args.threads)
 
