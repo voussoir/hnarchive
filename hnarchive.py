@@ -20,6 +20,9 @@ HEADERS = {
     'User-Agent': f'voussoir/hnarchive v{VERSION}.',
 }
 
+session = requests.Session()
+session.headers.update(HEADERS)
+
 DB_INIT = '''
 PRAGMA user_version = 1;
 CREATE TABLE IF NOT EXISTS items(
@@ -66,9 +69,6 @@ def int_or_none(x):
     return int(x)
 
 # API ##############################################################################################
-
-session = requests.Session()
-session.headers.update(HEADERS)
 
 def get(url, retries=1):
     start_time = time.time()
