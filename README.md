@@ -80,3 +80,5 @@ Here are all of the subcommands:
 https://github.com/voussoir/hnarchive
 
 https://gitlab.com/voussoir/hnarchive
+
+https://codeberg.org/voussoir/hnarchive
