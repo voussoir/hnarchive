@@ -12,7 +12,7 @@ from voussoirkit import sqlhelpers
 from voussoirkit import threadpool
 from voussoirkit import vlogging
 
-log = vlogging.getLogger('hnarchive')
+log = vlogging.getLogger(__name__)
 
 VERSION = 1
 
