@@ -7,6 +7,7 @@ import time
 
 from voussoirkit import backoff
 from voussoirkit import betterhelp
+from voussoirkit import operatornotify
 from voussoirkit import ratelimiter
 from voussoirkit import sqlhelpers
 from voussoirkit import threadpool
@@ -396,9 +397,9 @@ def update_items_argparse(args):
 
     insert_items(items, commit_period=args.commit_period)
 
+@operatornotify.main_decorator(subject='hnarchive.py')
+@vlogging.main_decorator
 def main(argv):
-    argv = vlogging.main_level_by_argv(argv)
-
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers()
 
