@@ -284,10 +284,10 @@ get:
 
     flags:
     --lower id:
-        Lower bound item ID.
+        Lower bound item ID. If omitted, starts from 1.
 
     --upper id:
-        Upper bound item ID.
+        Upper bound item ID. If omitted, ends at newest post.
 
     --threads X:
         Use X threads to download items. Default = 1 thread.
