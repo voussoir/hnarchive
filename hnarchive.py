@@ -400,7 +400,7 @@ def update_items_argparse(args):
 @operatornotify.main_decorator(subject='hnarchive.py')
 @vlogging.main_decorator
 def main(argv):
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=DOCSTRING)
     subparsers = parser.add_subparsers()
 
     p_get = subparsers.add_parser('get')
