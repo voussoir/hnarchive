@@ -59,7 +59,7 @@ sql.executescript(DB_INIT)
 def ctrlc_commit(function):
     def wrapped(*args, **kwargs):
         try:
-            function(*args, **kwargs)
+            return function(*args, **kwargs)
         except KeyboardInterrupt:
             commit()
     return wrapped
@@ -356,10 +356,12 @@ def get_argparse(args):
     items = get_items(ids, threads=args.threads)
 
     insert_items(items, commit_period=args.commit_period)
+    return 0
 
 @ctrlc_commit
 def livestream_argparse(args):
     insert_items(livestream(), commit_period=args.commit_period)
+    return 0
 
 @ctrlc_commit
 def update_argparse(args):
@@ -373,6 +375,7 @@ def update_argparse(args):
         items = get_items(ids, threads=args.threads)
 
         insert_items(items, commit_period=args.commit_period)
+    return 0
 
 @ctrlc_commit
 def update_items_argparse(args):
@@ -396,6 +399,7 @@ def update_items_argparse(args):
     items = get_items(ids, threads=args.threads)
 
     insert_items(items, commit_period=args.commit_period)
+    return 0
 
 @operatornotify.main_decorator(subject='hnarchive.py')
 @vlogging.main_decorator
