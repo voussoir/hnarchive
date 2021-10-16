@@ -7,6 +7,7 @@ import time
 
 from voussoirkit import backoff
 from voussoirkit import betterhelp
+from voussoirkit import mutables
 from voussoirkit import operatornotify
 from voussoirkit import ratelimiter
 from voussoirkit import sqlhelpers
@@ -361,6 +362,7 @@ def get_argparse(args):
 
 @ctrlc_commit
 def livestream_argparse(args):
+    NOTIFY_EVERY_LINE.set(True)
     insert_items(livestream(), commit_period=args.commit_period)
     return 0
 
@@ -402,7 +404,9 @@ def update_items_argparse(args):
     insert_items(items, commit_period=args.commit_period)
     return 0
 
-@operatornotify.main_decorator(subject='hnarchive.py')
+NOTIFY_EVERY_LINE = mutables.Boolean(False)
+
+@operatornotify.main_decorator(subject='hnarchive.py', notify_every_line=NOTIFY_EVERY_LINE)
 @vlogging.main_decorator
 def main(argv):
     parser = argparse.ArgumentParser(description=DOCSTRING)
