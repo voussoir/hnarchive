@@ -62,6 +62,7 @@ def ctrlc_commit(function):
             return function(*args, **kwargs)
         except KeyboardInterrupt:
             commit()
+            return 1
     return wrapped
 
 def int_or_none(x):
@@ -393,7 +394,7 @@ def update_items_argparse(args):
     log.info('Updating %d items.', len(ids))
 
     if not ids:
-        return
+        return 0
 
     ids = [id for (id,) in ids]
     items = get_items(ids, threads=args.threads)
