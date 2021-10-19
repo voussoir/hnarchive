@@ -7,6 +7,7 @@ import time
 
 from voussoirkit import backoff
 from voussoirkit import betterhelp
+from voussoirkit import httperrors
 from voussoirkit import mutables
 from voussoirkit import operatornotify
 from voussoirkit import ratelimiter
@@ -76,24 +77,23 @@ def int_or_none(x):
 def get(url, retries=1):
     bo = backoff.Quadratic(a=0.2, b=0, c=1, max=10)
     while retries > 0:
-        log.loud(url)
         try:
+            log.loud(url)
             response = session.get(url, timeout=2)
-            response.raise_for_status()
-            break
-        except requests.exceptions.HTTPError as exc:
-            if exc.response.status_code == 429:
-                pass
-            elif 400 <= exc.response.status_code <= 499:
-                raise
+            httperrors.raise_for_status(response)
+            return response
+        except (
+                httperrors.HTTP429,
+                httperrors.HTTP5XX,
+                requests.exceptions.ConnectionError,
+                requests.exceptions.ReadTimeout,
+            ):
+            # Any other 4XX should raise.
             retries -= 1
             log.loud('Request failed, %d tries remain.', retries)
             time.sleep(bo.next())
-        except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
-            log.loud('Request failed, %d tries remain.', retries)
-            time.sleep(bo.next())
 
-    return response
+    raise RuntimeError(f'Ran out of retries on {url}.')
 
 def get_item(id):
     url = f'https://hacker-news.firebaseio.com/v0/item/{id}.json'
