@@ -74,8 +74,6 @@ def int_or_none(x):
 # API ##############################################################################################
 
 def get(url, retries=1):
-    start_time = time.time()
-
     bo = backoff.Quadratic(a=0.2, b=0, c=1, max=10)
     while retries > 0:
         log.loud(url)
@@ -95,8 +93,6 @@ def get(url, retries=1):
             log.loud('Request failed, %d tries remain.', retries)
             time.sleep(bo.next())
 
-    end_time = time.time()
-    log.loud('%s took %s.', url, end_time - start_time)
     return response
 
 def get_item(id):
