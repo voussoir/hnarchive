@@ -1,4 +1,7 @@
 import argparse
+import bs4
+import datetime
+import html
 import logging
 import requests
 import sqlite3
@@ -13,6 +16,7 @@ from voussoirkit import operatornotify
 from voussoirkit import ratelimiter
 from voussoirkit import sqlhelpers
 from voussoirkit import threadpool
+from voussoirkit import treeclass
 from voussoirkit import vlogging
 
 log = vlogging.getLogger(__name__, 'hnarchive')
@@ -280,6 +284,205 @@ def select_latest_id():
         return None
     return row[0]
 
+# RENDERING ########################################################################################
+
+def _fix_ptags(text):
+    '''
+    The text returned by HN only puts <p> in between paragraphs, they do
+    not add closing tags or put an opening <p> on the first paragraph.
+
+    If the user typed a literal <p> then it will have been stored with &lt; and
+    &gt; so it won't get messed up here.
+    '''
+    text = text.replace('<p>', '</p><p>')
+    text = '<p>' + text + '</p>'
+    return text
+
+def build_item_tree(*, id=None, item=None):
+    if id is not None and item is None:
+        item = select_item(id)
+        if item is None:
+            raise ValueError('We dont have that item in the database.')
+    elif item is not None and id is None:
+        id = item['id']
+    else:
+        raise TypeError('Please pass only one of id, item.')
+
+    tree = treeclass.Tree(str(id), data=item)
+    for child in select_child_items(id):
+        tree.add_child(build_item_tree(item=child))
+    return tree
+
+def html_render_comment(*, soup, item):
+    div = soup.new_tag('div')
+    div['class'] = item['type']
+    div['id'] = item['id']
+
+    userinfo = soup.new_tag('p')
+    div.append(userinfo)
+
+    author = item['author'] or '[deleted]'
+    username = soup.new_tag('a', href=f'https://news.ycombinator.com/user?id={author}')
+    username.append(author)
+    userinfo.append(username)
+
+    userinfo.append(' | ')
+
+    date = datetime.datetime.utcfromtimestamp(item['time'])
+    date = date.strftime('%Y %b %d %H:%M:%S')
+    timestamp = soup.new_tag('a', href=f'https://news.ycombinator.com/item?id={item["id"]}')
+    timestamp.append(date)
+    userinfo.append(timestamp)
+
+    text = item['text'] or '[deleted]'
+    text = bs4.BeautifulSoup(_fix_ptags(text), 'html.parser')
+    div.append(text)
+    return div
+
+def html_render_comment_tree(*, soup, tree):
+    div = html_render_comment(soup=soup, item=tree.data)
+
+    for child in tree.list_children(sort=lambda node: node.data['time']):
+        div.append(html_render_comment_tree(soup=soup, tree=child))
+
+    return div
+
+def html_render_job(*, soup, item):
+    div = soup.new_tag('div')
+    div['class'] = item['type']
+    div['id'] = item['id']
+
+    h = soup.new_tag('h1')
+    div.append(h)
+    h.append(item['title'])
+
+    if item['text']:
+        text = bs4.BeautifulSoup(_fix_ptags(item['text']), 'html.parser')
+        div.append(text)
+
+    return div
+
+def html_render_poll(*, soup, item):
+    options = select_poll_options(item['id'])
+    div = html_render_story(soup=soup, item=item)
+    for option in options:
+        div.append(html_render_pollopt(soup=soup, item=option))
+    return div
+
+def html_render_pollopt(*, soup, item):
+    div = soup.new_tag('div')
+    div['class'] = item['type']
+
+    text = bs4.BeautifulSoup(_fix_ptags(item['text']), 'html.parser')
+    div.append(text)
+
+    points = soup.new_tag('p')
+    points.append(f'{item["score"]} points')
+    div.append(points)
+
+    return div
+
+def html_render_story(*, soup, item):
+    div = soup.new_tag('div')
+    div['class'] = item['type']
+    div['id'] = item['id']
+
+    h = soup.new_tag('h1')
+    div.append(h)
+    if item['url']:
+        a = soup.new_tag('a', href=item['url'])
+        a.append(item['title'])
+        h.append(a)
+    else:
+        h.append(item['title'])
+    if item['text']:
+        text = bs4.BeautifulSoup(_fix_ptags(item['text']), 'html.parser')
+        div.append(text)
+
+    userinfo = soup.new_tag('p')
+    div.append(userinfo)
+
+    author = item['author']
+    username = soup.new_tag('a', href=f'https://news.ycombinator.com/user?id={author}')
+    username.append(author)
+    userinfo.append(username)
+
+    userinfo.append(' | ')
+
+    date = datetime.datetime.utcfromtimestamp(item['time'])
+    date = date.strftime('%Y %b %d %H:%M:%S')
+    timestamp = soup.new_tag('a', href=f'https://news.ycombinator.com/item?id={item["id"]}')
+    timestamp.append(date)
+    userinfo.append(timestamp)
+
+    userinfo.append(' | ')
+
+    points = soup.new_tag('span')
+    points.append(f'{item["score"]} points')
+    userinfo.append(points)
+    return div
+
+def html_render_page(tree):
+    soup = bs4.BeautifulSoup()
+    html = soup.new_tag('html')
+    soup.append(html)
+
+    head = soup.new_tag('head')
+    html.append(head)
+
+    style = soup.new_tag('style')
+    style.append('''
+    .comment,
+    .job,
+    .poll,
+    .pollopt,
+    .story
+    {
+        padding-left: 20px;
+        margin-top: 4px;
+        margin-right: 4px;
+        margin-bottom: 4px;
+    }
+    .job, .poll, .story
+    {
+        border: 2px solid blue;
+    }
+    body > .story + .comment,
+    body > .comment + .comment
+    {
+        margin-top: 10px;
+    }
+    .comment, .pollopt
+    {
+        border: 1px solid black;
+    }
+    ''')
+    head.append(style)
+
+    body = soup.new_tag('body')
+    html.append(body)
+
+    item = tree.data
+
+    if item['type'] == 'comment':
+        body.append(html_render_comment_tree(soup=soup, tree=tree))
+
+    elif item['type'] == 'job':
+        body.append(html_render_job(soup=soup, item=item))
+
+    elif item['type'] == 'poll':
+        body.append(html_render_poll(soup=soup, item=item))
+        for child in tree.list_children(sort=lambda node: node.data['time']):
+            body.append(html_render_comment_tree(soup=soup, tree=child))
+
+    elif item['type'] == 'story':
+        body.append(html_render_story(soup=soup, item=item))
+        for child in tree.list_children(sort=lambda node: node.data['time']):
+            body.append(html_render_comment_tree(soup=soup, tree=child))
+
+    return soup
+
+
 # COMMAND LINE #####################################################################################
 
 DOCSTRING = '''
@@ -287,6 +490,8 @@ hnarchive.py
 ============
 
 {get}
+
+{html_render}
 
 {livestream}
 
@@ -302,6 +507,8 @@ SUB_DOCSTRINGS = dict(
 get='''
 get:
     Get items between two IDs, inclusive.
+
+    > hnarchive get <flags>
 
     flags:
     --lower id:
@@ -321,9 +528,28 @@ livestream='''
 livestream:
     Watch for new items in an infinite loop.
 
+    > hnarchive livestream <flags>
+
     flags:
     --commit_period X:
         Commit the database after every X insertions. Default = 200.
+'''.strip(),
+
+html_render='''
+html_render:
+    Render items to HTML -- stories, comment trees, etc.
+
+    > hnarchive html_render id [id id...] <flags>
+
+    In general, you probably want to start with the story's ID so you get the
+    whole page, but you can export an individual comment tree by passing the
+    root comment's ID. Polls and job ads should also render correctly.
+
+    flags:
+    --output X:
+        Save the html to the file named X. Your filename may include "{id}" and
+        the item's ID will be formatted into the string. This will be necessary
+        if you are rendering multiple IDs in a single invocation.
 '''.strip(),
 
 update='''
@@ -378,6 +604,18 @@ def get_argparse(args):
 
     insert_items(items, commit_period=args.commit_period)
     return 0
+
+def html_render_argparse(args):
+    for id in args.ids:
+        tree = build_item_tree(id=id)
+        soup = html_render_page(tree)
+        html = str(soup)
+        if args.output:
+            filename = args.output.format(id=id)
+            with open(filename, 'w', encoding='utf-8') as handle:
+                handle.write(html)
+        else:
+            print(html)
 
 @ctrlc_commit
 def livestream_argparse(args):
@@ -437,6 +675,11 @@ def main(argv):
     p_get.add_argument('--threads', type=int, default=None)
     p_get.add_argument('--commit_period', '--commit-period', type=int, default=200)
     p_get.set_defaults(func=get_argparse)
+
+    p_html_render = subparsers.add_parser('html_render', aliases=['html-render'])
+    p_html_render.add_argument('ids', nargs='+')
+    p_html_render.add_argument('--output', default=None)
+    p_html_render.set_defaults(func=html_render_argparse)
 
     p_livestream = subparsers.add_parser('livestream')
     p_livestream.add_argument('--commit_period', '--commit-period', type=int, default=200)
