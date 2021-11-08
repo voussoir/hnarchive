@@ -17,7 +17,7 @@ from voussoirkit import vlogging
 
 log = vlogging.getLogger(__name__, 'hnarchive')
 
-VERSION = 1
+VERSION = '1.0.0'
 
 HEADERS = {
     'User-Agent': f'voussoir/hnarchive v{VERSION}.',
