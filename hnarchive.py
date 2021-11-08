@@ -27,6 +27,7 @@ session = requests.Session()
 session.headers.update(HEADERS)
 
 DB_INIT = '''
+BEGIN;
 PRAGMA user_version = 1;
 CREATE TABLE IF NOT EXISTS items(
     id INT PRIMARY KEY NOT NULL,
@@ -46,15 +47,17 @@ CREATE TABLE IF NOT EXISTS items(
 );
 CREATE INDEX IF NOT EXISTS index_items_id on items(id);
 CREATE INDEX IF NOT EXISTS index_items_parent on items(parent);
+CREATE INDEX IF NOT EXISTS index_items_poll on items(poll) WHERE poll IS NOT NULL;
 CREATE INDEX IF NOT EXISTS index_items_time on items(time);
 CREATE INDEX IF NOT EXISTS index_items_type_time on items(type, time);
 CREATE INDEX IF NOT EXISTS index_items_age_at_retrieval on items(retrieved - time);
+COMMIT;
 '''
 COLUMNS = sqlhelpers.extract_table_column_map(DB_INIT)
 ITEMS_COLUMNS = COLUMNS['items']
 
 sql = sqlite3.connect('hnarchive.db')
-sql.executescript(DB_INIT)
+sqlhelpers.executescript(sql, DB_INIT)
 
 # HELPERS ##########################################################################################
 
@@ -239,6 +242,26 @@ def insert_items(items, commit_period=200):
         if ticker == 0:
             commit()
     commit()
+
+def select_child_items(id):
+    '''
+    Return items whose parent is this id.
+    '''
+    cur = sql.execute('SELECT * FROM items WHERE parent == ?', [id])
+    rows = cur.fetchall()
+
+    items = [dict(zip(ITEMS_COLUMNS, row)) for row in rows]
+    return items
+
+def select_poll_options(id):
+    '''
+    Return items that are pollopts under this given poll id.
+    '''
+    cur = sql.execute('SELECT * FROM items WHERE poll == ?', [id])
+    rows = cur.fetchall()
+
+    items = [dict(zip(ITEMS_COLUMNS, row)) for row in rows]
+    return items
 
 def select_item(id):
     cur = sql.execute('SELECT * FROM items WHERE id == ?', [id])
