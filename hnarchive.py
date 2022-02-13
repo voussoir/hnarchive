@@ -482,121 +482,11 @@ def html_render_page(tree):
 
     return soup
 
-
 # COMMAND LINE #####################################################################################
-
-DOCSTRING = '''
-hnarchive.py
-============
-
-{get}
-
-{html_render}
-
-{livestream}
-
-{update}
-
-{update_items}
-
-TO SEE DETAILS ON EACH COMMAND, RUN
-> hnarchive.py <command> --help
-'''.lstrip()
-
-SUB_DOCSTRINGS = dict(
-get='''
-get:
-    Get items between two IDs, inclusive.
-
-    > hnarchive get <flags>
-
-    flags:
-    --lower id:
-        Lower bound item ID. If omitted, starts from 1.
-
-    --upper id:
-        Upper bound item ID. If omitted, ends at newest post.
-
-    --threads X:
-        Use X threads to download items. Default = 1 thread.
-
-    --commit_period X:
-        Commit the database after every X insertions. Default = 200.
-'''.strip(),
-
-livestream='''
-livestream:
-    Watch for new items in an infinite loop.
-
-    > hnarchive livestream <flags>
-
-    flags:
-    --commit_period X:
-        Commit the database after every X insertions. Default = 200.
-'''.strip(),
-
-html_render='''
-html_render:
-    Render items to HTML -- stories, comment trees, etc.
-
-    > hnarchive html_render id [id id...] <flags>
-
-    In general, you probably want to start with the story's ID so you get the
-    whole page, but you can export an individual comment tree by passing the
-    root comment's ID. Polls and job ads should also render correctly.
-
-    flags:
-    --output X:
-        Save the html to the file named X. Your filename may include "{id}" and
-        the item's ID will be formatted into the string. This will be necessary
-        if you are rendering multiple IDs in a single invocation.
-'''.strip(),
-
-update='''
-update:
-    Get new items, from the highest ID in the database to the present.
-
-    flags:
-    --threads X:
-        Use X threads to download items. Default = 1 thread.
-
-    --commit_period X:
-        Commit the database after every X insertions. Default = 200.
-'''.strip(),
-
-update_items='''
-update_items:
-    Redownload items to update their scores, descendant counts, etc.
-
-    flags:
-    --days X:
-        Update items where the retrieval date is less than X days ahead of the
-        submission date.
-        Stories are only open for comments for 14 days, so the `descendants`
-        count of any story younger than 14 days should be considered volatile.
-        It seems the upvote button does not disappear at any age, though I
-        don't know whether votes on old submissions will actually count.
-        Regardless, votes and comments tend to solidify within a day or two
-        after submission so a small number should be sufficient.
-
-    --threads X:
-        Use X threads to download items. Default = 1 thread.
-
-    --only_mature:
-        If True, only update items where the submission date is more than 14
-        days ago. Without this, you will be updating items which are very close
-        to the present time, an effort which you may find wasteful.
-
-    --commit_period X:
-        Commit the database after every X insertions. Default = 200.
-'''.strip(),
-)
-
-DOCSTRING = betterhelp.add_previews(DOCSTRING, SUB_DOCSTRINGS)
 
 @ctrlc_commit
 def get_argparse(args):
-    lower = args.lower or 1
+    lower = args.lower
     upper = args.upper or get_latest_id()
 
     ids = range(lower, upper+1)
@@ -666,43 +556,179 @@ NOTIFY_EVERY_LINE = mutables.Boolean(False)
 @operatornotify.main_decorator(subject='hnarchive.py', notify_every_line=NOTIFY_EVERY_LINE)
 @vlogging.main_decorator
 def main(argv):
-    parser = argparse.ArgumentParser(description=DOCSTRING)
+    parser = argparse.ArgumentParser(description='Hacker News downloader.')
     subparsers = parser.add_subparsers()
 
-    p_get = subparsers.add_parser('get')
-    p_get.add_argument('--lower', type=int, default=None)
-    p_get.add_argument('--upper', type=int, default=None)
-    p_get.add_argument('--threads', type=int, default=None)
-    p_get.add_argument('--commit_period', '--commit-period', type=int, default=200)
+    ################################################################################################
+
+    p_get = subparsers.add_parser(
+        'get',
+        description='''
+        Get items between two IDs, inclusive.
+        ''',
+    )
+    p_get.add_argument(
+        '--lower',
+        type=int,
+        default=1,
+        help='''
+        Lower bound item ID.
+        ''',
+    )
+    p_get.add_argument(
+        '--upper',
+        type=int,
+        default=None,
+        help='''
+        Upper bound item ID.
+        Default: most recent post.
+        ''',
+    )
+    p_get.add_argument(
+        '--threads',
+        type=int,
+        default=None,
+        help='''
+        Use this many threads to download items.
+        ''',
+    )
+    p_get.add_argument(
+        '--commit_period', '--commit-period',
+        type=int,
+        default=200,
+        help='''
+        Commit the database after every this many insertions.
+        '''
+    )
     p_get.set_defaults(func=get_argparse)
 
-    p_html_render = subparsers.add_parser('html_render', aliases=['html-render'])
-    p_html_render.add_argument('ids', nargs='+')
-    p_html_render.add_argument('--output', default=None)
+    ################################################################################################
+
+    p_html_render = subparsers.add_parser(
+        'html_render',
+        aliases=['html-render'],
+        description='''
+        Render items to HTML -- stories, comment trees, etc.
+        ''',
+    )
+    p_html_render.add_argument(
+        'ids',
+        nargs='+',
+        type=int,
+        help='''
+        One or more ids to render.
+        ''',
+    )
+    p_html_render.add_argument(
+        '--output',
+        type=str,
+        default=None,
+        help='''
+        Save the html to this file. Your filename may include "{id}" and
+        the item's ID will be formatted into the string. This will be necessary
+        if you are rendering multiple IDs in a single invocation.
+        ''',
+    )
     p_html_render.set_defaults(func=html_render_argparse)
 
-    p_livestream = subparsers.add_parser('livestream')
-    p_livestream.add_argument('--commit_period', '--commit-period', type=int, default=200)
+    ################################################################################################
+
+    p_livestream = subparsers.add_parser(
+        'livestream',
+        description='''
+        Watch for new items in an infinite loop.
+
+        Starts from the most recent id in the database.
+        ''',
+    )
+    p_livestream.add_argument(
+        '--commit_period', '--commit-period',
+        type=int,
+        default=200,
+        help='''
+        Commit the database after every this many insertions.
+        ''',
+    )
     p_livestream.set_defaults(func=livestream_argparse)
 
-    p_update = subparsers.add_parser('update')
-    p_update.add_argument('--threads', type=int, default=None)
-    p_update.add_argument('--commit_period', '--commit-period', type=int, default=200)
+    ################################################################################################
+
+    p_update = subparsers.add_parser(
+        'update',
+        description='''
+        Get new items, from the highest ID in the database to the present.
+        ''',
+    )
+    p_update.add_argument(
+        '--threads',
+        type=int,
+        default=None,
+        help='''
+        Use this many threads to download items.
+        ''',
+    )
+    p_update.add_argument(
+        '--commit_period', '--commit-period',
+        type=int,
+        default=200,
+        help='''
+        Commit the database after every this many insertions.
+        '''
+    )
     p_update.set_defaults(func=update_argparse)
 
-    p_update_items = subparsers.add_parser('update_items', aliases=['update-items'])
-    p_update_items.add_argument('--days', type=float, required=True)
-    p_update_items.add_argument('--threads', type=int, default=None)
-    p_update_items.add_argument('--only_mature', '--only-mature', action='store_true')
-    p_update_items.add_argument('--commit_period', '--commit-period', type=int, default=200)
+    ################################################################################################
+
+    p_update_items = subparsers.add_parser(
+        'update_items',
+        aliases=['update-items'],
+        description='''
+        Redownload items to update their scores, descendant counts, etc.
+        ''',
+    )
+    p_update_items.add_argument(
+        '--days',
+        type=float,
+        required=True,
+        help='''
+        Update items where the retrieval date is less than X days ahead of the
+        submission date.
+        Stories are only open for comments for 14 days, so the `descendants`
+        count of any story younger than 14 days should be considered volatile.
+        It seems the upvote button does not disappear at any age, though I
+        don't know whether votes on old submissions will actually count.
+        Regardless, votes and comments tend to solidify within a day or two
+        after submission so a small number should be sufficient.
+        ''',
+    )
+    p_update_items.add_argument(
+        '--threads',
+        type=int,
+        default=None,
+        help='''
+        Use this many threads to download items.
+        ''',
+    )
+    p_update_items.add_argument(
+        '--only_mature', '--only-mature',
+        action='store_true',
+        help='''
+        If True, only update items where the submission date is more than 14
+        days ago. Without this, you will be updating items which are very close
+        to the present time, an effort which you may find wasteful.
+        ''',
+    )
+    p_update_items.add_argument(
+        '--commit_period', '--commit-period',
+        type=int,
+        default=200,
+        help='''
+        Commit the database after every this many insertions.
+        '''
+    )
     p_update_items.set_defaults(func=update_items_argparse)
 
-    return betterhelp.subparser_main(
-        argv,
-        parser,
-        main_docstring=DOCSTRING,
-        sub_docstrings=SUB_DOCSTRINGS,
-    )
+    return betterhelp.go(parser, argv)
 
 if __name__ == '__main__':
     raise SystemExit(main(sys.argv[1:]))
