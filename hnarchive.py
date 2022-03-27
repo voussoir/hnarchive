@@ -13,6 +13,7 @@ from voussoirkit import betterhelp
 from voussoirkit import httperrors
 from voussoirkit import mutables
 from voussoirkit import operatornotify
+from voussoirkit import pathclass
 from voussoirkit import ratelimiter
 from voussoirkit import sqlhelpers
 from voussoirkit import threadpool
@@ -60,8 +61,22 @@ COMMIT;
 COLUMNS = sqlhelpers.extract_table_column_map(DB_INIT)
 ITEMS_COLUMNS = COLUMNS['items']
 
-sql = sqlite3.connect('hnarchive.db')
-sqlhelpers.executescript(sql, DB_INIT)
+def init_db():
+    global sql
+    global cur
+
+    log.debug('Initializing database.')
+    db_path = pathclass.Path('hnarchive.db')
+    if db_path.is_link and not db_path.is_file:
+        raise RuntimeError(f'{db_path.absolute_path} is a broken link.')
+
+    db_exists = db_path.is_file
+    sql = sqlite3.connect(db_path.absolute_path)
+    cur = sql.cursor()
+
+    if not db_exists:
+        log.debug('Running first-time database setup.')
+        sqlhelpers.executescript(conn=sql, script=DB_INIT)
 
 # HELPERS ##########################################################################################
 
@@ -211,7 +226,7 @@ def insert_item(data):
         log.info('Inserting item %s.', id)
         (qmarks, bindings) = sqlhelpers.insert_filler(ITEMS_COLUMNS, row, require_all=True)
         query = f'INSERT INTO items VALUES({qmarks})'
-        sql.execute(query, bindings)
+        cur.execute(query, bindings)
         log.loud('Inserted item %s.', id)
     else:
         row = {
@@ -233,7 +248,7 @@ def insert_item(data):
         log.info('Updating item %s.', id)
         (qmarks, bindings) = sqlhelpers.update_filler(row, where_key='id')
         query = f'UPDATE items {qmarks}'
-        sql.execute(query, bindings)
+        cur.execute(query, bindings)
         log.loud('Updated item %s.', id)
 
     return {'row': row, 'is_new': existing is None}
@@ -251,7 +266,7 @@ def select_child_items(id):
     '''
     Return items whose parent is this id.
     '''
-    cur = sql.execute('SELECT * FROM items WHERE parent == ?', [id])
+    cur.execute('SELECT * FROM items WHERE parent == ?', [id])
     rows = cur.fetchall()
 
     items = [dict(zip(ITEMS_COLUMNS, row)) for row in rows]
@@ -261,14 +276,14 @@ def select_poll_options(id):
     '''
     Return items that are pollopts under this given poll id.
     '''
-    cur = sql.execute('SELECT * FROM items WHERE poll == ?', [id])
+    cur.execute('SELECT * FROM items WHERE poll == ?', [id])
     rows = cur.fetchall()
 
     items = [dict(zip(ITEMS_COLUMNS, row)) for row in rows]
     return items
 
 def select_item(id):
-    cur = sql.execute('SELECT * FROM items WHERE id == ?', [id])
+    cur.execute('SELECT * FROM items WHERE id == ?', [id])
     row = cur.fetchone()
 
     if row is None:
@@ -278,7 +293,7 @@ def select_item(id):
     return item
 
 def select_latest_id():
-    cur = sql.execute('SELECT id FROM items ORDER BY id DESC LIMIT 1')
+    cur.execute('SELECT id FROM items ORDER BY id DESC LIMIT 1')
     row = cur.fetchone()
     if row is None:
         return None
@@ -486,6 +501,7 @@ def html_render_page(tree):
 
 @ctrlc_commit
 def get_argparse(args):
+    init_db()
     lower = args.lower
     upper = args.upper or get_latest_id()
 
@@ -496,6 +512,7 @@ def get_argparse(args):
     return 0
 
 def html_render_argparse(args):
+    init_db()
     for id in args.ids:
         tree = build_item_tree(id=id)
         soup = html_render_page(tree)
@@ -509,12 +526,14 @@ def html_render_argparse(args):
 
 @ctrlc_commit
 def livestream_argparse(args):
+    init_db()
     NOTIFY_EVERY_LINE.set(True)
     insert_items(livestream(), commit_period=args.commit_period)
     return 0
 
 @ctrlc_commit
 def update_argparse(args):
+    init_db()
     while True:
         lower = select_latest_id() or 1
         upper = get_latest_id()
@@ -529,6 +548,7 @@ def update_argparse(args):
 
 @ctrlc_commit
 def update_items_argparse(args):
+    init_db()
     seconds = args.days * 86400
     if args.only_mature:
         then = time.time() - (86400 * 14)
@@ -537,7 +557,7 @@ def update_items_argparse(args):
     else:
         query = 'SELECT id FROM items WHERE retrieved - time <= ?'
         bindings = [seconds]
-    cur = sql.execute(query, bindings)
+    cur.execute(query, bindings)
     ids = cur.fetchall()
 
     log.info('Updating %d items.', len(ids))
