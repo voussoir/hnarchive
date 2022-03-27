@@ -117,7 +117,7 @@ def get_item(id):
     return item
 
 def get_items(ids, threads=None):
-    if threads:
+    if threads and threads > 1:
         return get_items_multithreaded(ids, threads)
     else:
         return get_items_singlethreaded(ids)
@@ -587,7 +587,7 @@ def main(argv):
     p_get.add_argument(
         '--threads',
         type=int,
-        default=None,
+        default=1,
         help='''
         Use this many threads to download items.
         ''',
@@ -662,7 +662,7 @@ def main(argv):
     p_update.add_argument(
         '--threads',
         type=int,
-        default=None,
+        default=1,
         help='''
         Use this many threads to download items.
         ''',
@@ -704,7 +704,7 @@ def main(argv):
     p_update_items.add_argument(
         '--threads',
         type=int,
-        default=None,
+        default=1,
         help='''
         Use this many threads to download items.
         ''',
