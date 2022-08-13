@@ -58,8 +58,6 @@ CREATE INDEX IF NOT EXISTS index_items_type_time on items(type, time);
 CREATE INDEX IF NOT EXISTS index_items_age_at_retrieval on items(retrieved - time);
 COMMIT;
 '''
-COLUMNS = sqlhelpers.extract_table_column_map(DB_INIT)
-ITEMS_COLUMNS = COLUMNS['items']
 
 def init_db():
     global sql
@@ -224,8 +222,8 @@ def insert_item(data):
             'retrieved': retrieved,
         }
         log.info('Inserting item %s.', id)
-        (qmarks, bindings) = sqlhelpers.insert_filler(ITEMS_COLUMNS, row, require_all=True)
-        query = f'INSERT INTO items VALUES({qmarks})'
+        (qmarks, bindings) = sqlhelpers.insert_filler(row)
+        query = f'INSERT INTO items {qmarks}'
         cur.execute(query, bindings)
         log.loud('Inserted item %s.', id)
     else:
