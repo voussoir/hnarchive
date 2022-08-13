@@ -70,6 +70,7 @@ def init_db():
 
     db_exists = db_path.is_file
     sql = sqlite3.connect(db_path.absolute_path)
+    sql.row_factory = sqlite3.Row
     cur = sql.cursor()
 
     if not db_exists:
@@ -231,15 +232,15 @@ def insert_item(data):
             'id': id,
             'deleted': bool(data.get('deleted', False)),
             'type': data['type'],
-            'author': data.get('by', existing.get('author', None)),
+            'author': data.get('by', existing['author']),
             'time': int(data['time']),
-            'text': data.get('text', existing.get('text', None)),
+            'text': data.get('text', existing['text']),
             'dead': bool(data.get('dead', False)),
             'parent': data.get('parent', None),
-            'poll': data.get('poll', existing.get('poll', None)),
-            'url': data.get('url', existing.get('url', None)),
-            'score': int_or_none(data.get('score', existing.get('score', None))),
-            'title': data.get('title', existing.get('title', None)),
+            'poll': data.get('poll', existing['poll']),
+            'url': data.get('url', existing['url']),
+            'score': int_or_none(data.get('score', existing['score'])),
+            'title': data.get('title', existing['title']),
             'descendants': int_or_none(data.get('descendants', None)),
             'retrieved': retrieved,
         }
@@ -266,9 +267,7 @@ def select_child_items(id):
     '''
     cur.execute('SELECT * FROM items WHERE parent == ?', [id])
     rows = cur.fetchall()
-
-    items = [dict(zip(ITEMS_COLUMNS, row)) for row in rows]
-    return items
+    return rows
 
 def select_poll_options(id):
     '''
@@ -276,26 +275,19 @@ def select_poll_options(id):
     '''
     cur.execute('SELECT * FROM items WHERE poll == ?', [id])
     rows = cur.fetchall()
-
-    items = [dict(zip(ITEMS_COLUMNS, row)) for row in rows]
-    return items
+    return rows
 
 def select_item(id):
     cur.execute('SELECT * FROM items WHERE id == ?', [id])
     row = cur.fetchone()
-
-    if row is None:
-        return None
-
-    item = dict(zip(ITEMS_COLUMNS, row))
-    return item
+    return row
 
 def select_latest_id():
     cur.execute('SELECT id FROM items ORDER BY id DESC LIMIT 1')
     row = cur.fetchone()
     if row is None:
         return None
-    return row[0]
+    return row['id']
 
 # RENDERING ########################################################################################
 
