@@ -79,6 +79,8 @@ Here are all of the subcommands:
 
 ## Mirrors
 
+https://git.voussoir.net/voussoir/hnarchive
+
 https://github.com/voussoir/hnarchive
 
 https://gitlab.com/voussoir/hnarchive
