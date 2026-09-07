@@ -205,6 +205,8 @@ def insert_item(data):
     retrieved = int(time.time())
 
     existing = select_item(id)
+    item_timestamp = datetime.datetime.fromtimestamp(data['time'], datetime.timezone.utc)
+    item_timestamp = item_timestamp.astimezone().strftime('%Y-%m-%d %H:%M:%S')
     if existing is None:
         row = {
             'id': id,
@@ -222,7 +224,7 @@ def insert_item(data):
             'descendants': int_or_none(data.get('descendants', None)),
             'retrieved': retrieved,
         }
-        log.info('Inserting item %s.', id)
+        log.info('Inserting item %s (%s).', id, item_timestamp)
         (qmarks, bindings) = sqlhelpers.insert_filler(row)
         query = f'INSERT INTO items {qmarks}'
         cur.execute(query, bindings)
@@ -244,7 +246,7 @@ def insert_item(data):
             'descendants': int_or_none(data.get('descendants', None)),
             'retrieved': retrieved,
         }
-        log.info('Updating item %s.', id)
+        log.info('Updating item %s (%s).', id, item_timestamp)
         (qmarks, bindings) = sqlhelpers.update_filler(row, where_key='id')
         query = f'UPDATE items {qmarks}'
         cur.execute(query, bindings)
@@ -333,7 +335,7 @@ def html_render_comment(*, soup, item):
 
     userinfo.append(' | ')
 
-    date = datetime.datetime.utcfromtimestamp(item['time'])
+    date = datetime.datetime.fromtimestamp(item['time'], datetime.timezone.utc)
     date = date.strftime('%Y %b %d %H:%M:%S')
     timestamp = soup.new_tag('a', href=f'https://news.ycombinator.com/item?id={item["id"]}')
     timestamp.append(date)
@@ -414,7 +416,7 @@ def html_render_story(*, soup, item):
 
     userinfo.append(' | ')
 
-    date = datetime.datetime.utcfromtimestamp(item['time'])
+    date = datetime.datetime.fromtimestamp(item['time'], datetime.timezone.utc)
     date = date.strftime('%Y %b %d %H:%M:%S')
     timestamp = soup.new_tag('a', href=f'https://news.ycombinator.com/item?id={item["id"]}')
     timestamp.append(date)
