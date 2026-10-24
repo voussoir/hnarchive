@@ -566,7 +566,7 @@ def update_items_argparse(args):
 NOTIFY_EVERY_LINE = mutables.Boolean(False)
 
 @operatornotify.main_decorator(subject='hnarchive.py', notify_every_line=NOTIFY_EVERY_LINE)
-@vlogging.main_decorator
+@vlogging.main_decorator(log=log)
 def main(argv):
     parser = argparse.ArgumentParser(description='Hacker News downloader.')
     subparsers = parser.add_subparsers()
